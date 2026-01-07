@@ -50,21 +50,39 @@ jobs:
           type=semver,pattern={{major}}
           type=raw,value=latest,enable={{is_default_branch}}
 
-    - name: Determine version
+    - name: Determine next version
       id: version
       run: |
         if [[ "${{ github.event_name }}" == "release" ]]; then
           echo "version=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          echo "should_create_release=false" >> $GITHUB_OUTPUT
         elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-          # Check if release already exists
-          if gh release view 0.0.1 --repo ${{ github.repository }} >/dev/null 2>&1; then
-            echo "version=latest" >> $GITHUB_OUTPUT
-          else
-            echo "version=0.0.1" >> $GITHUB_OUTPUT
-            echo "should_create_release=true" >> $GITHUB_OUTPUT
+          # Get the latest release tag
+          LATEST_RELEASE=$(gh release list --repo ${{ github.repository }} --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || echo "v0.0.0")
+          
+          if [[ "$LATEST_RELEASE" == "null" || "$LATEST_RELEASE" == "" ]]; then
+            LATEST_RELEASE="v0.0.0"
           fi
+          
+          # Remove 'v' prefix if present
+          LATEST_VERSION=${LATEST_RELEASE#v}
+          
+          # Parse version components
+          IFS='.' read -ra VERSION_PARTS <<< "$LATEST_VERSION"
+          MAJOR=${VERSION_PARTS[0]:-0}
+          MINOR=${VERSION_PARTS[1]:-0}
+          PATCH=${VERSION_PARTS[2]:-0}
+          
+          # Increment patch version
+          PATCH=$((PATCH + 1))
+          
+          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          echo "version=${NEW_VERSION}" >> $GITHUB_OUTPUT
+          echo "should_create_release=true" >> $GITHUB_OUTPUT
+          echo "previous_version=${LATEST_VERSION}" >> $GITHUB_OUTPUT
         else
           echo "version=dev-${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "should_create_release=false" >> $GITHUB_OUTPUT
         fi
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -82,8 +100,17 @@ jobs:
     - name: Create release
       if: steps.version.outputs.should_create_release == 'true'
       run: |
+        CHANGELOG=""
+        if [[ -n "${{ steps.version.outputs.previous_version }}" && "${{ steps.version.outputs.previous_version }}" != "0.0.0" ]]; then
+          # Generate changelog since last release
+          CHANGELOG=$(gh api repos/${{ github.repository }}/compare/${{ steps.version.outputs.previous_version }}...main --jq '.commits | map("- " + .commit.message) | join("\n")')
+        fi
+        
         gh release create ${{ steps.version.outputs.version }} \
           --title "Release ${{ steps.version.outputs.version }}" \
-          --generate-notes
+          --notes "Automatic release with version increment from ${{ steps.version.outputs.previous_version }}
+        
+        ${CHANGELOG}" \
+          --latest
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
