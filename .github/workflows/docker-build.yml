@@ -16,7 +16,7 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
       actions: read
       attestations: write
@@ -56,10 +56,18 @@ jobs:
         if [[ "${{ github.event_name }}" == "release" ]]; then
           echo "version=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
         elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-          echo "version=0.0.1" >> $GITHUB_OUTPUT
+          # Check if release already exists
+          if gh release view 0.0.1 --repo ${{ github.repository }} >/dev/null 2>&1; then
+            echo "version=latest" >> $GITHUB_OUTPUT
+          else
+            echo "version=0.0.1" >> $GITHUB_OUTPUT
+            echo "should_create_release=true" >> $GITHUB_OUTPUT
+          fi
         else
           echo "version=dev-${{ github.sha }}" >> $GITHUB_OUTPUT
         fi
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
@@ -72,7 +80,7 @@ jobs:
         cache-to: type=gha,mode=max
 
     - name: Create release
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      if: steps.version.outputs.should_create_release == 'true'
       run: |
         gh release create ${{ steps.version.outputs.version }} \
           --title "Release ${{ steps.version.outputs.version }}" \
