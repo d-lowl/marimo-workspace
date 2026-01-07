@@ -87,13 +87,27 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+    - name: Update metadata with version tag
+      id: meta-with-version
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
+          type=raw,value=latest,enable={{is_default_branch}}
+          type=raw,value=${{ steps.version.outputs.version }},enable=${{ github.ref == 'refs/heads/main' && steps.version.outputs.should_create_release == 'true' }}
+
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
         context: .
         push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
+        tags: ${{ steps.meta-with-version.outputs.tags }}
+        labels: ${{ steps.meta-with-version.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
