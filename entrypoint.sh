@@ -21,4 +21,5 @@ exec marimo edit \
     --port "${MARIMO_PORT}" \
     --headless \
     --token-password "${MARIMO_TOKEN}" \
-    --allow-origins "${MARIMO_ALLOW_ORIGINS:-*}"
+    --allow-origins "${MARIMO_ALLOW_ORIGINS:-*}" \
+    --base-url "${MARIMO_BASE_URL:-/}"

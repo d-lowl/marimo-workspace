@@ -28,6 +28,7 @@ The editor will be available at `http://localhost:7000` with the token `test123`
 - `MARIMO_TOKEN`: Authentication token for the editor (required)
 - `MARIMO_ALLOW_ORIGINS`: CORS allowed origins (default: *)
 - `MARIMO_NOTEBOOK_DIR`: Notebook directory within workspace (default: notebooks)
+- `MARIMO_BASE_URL`: Base URL for the editor (default: /)
 - `GIT_USER_EMAIL`: Git user email for commits
 - `GIT_USERNAME`: Git username for commits
 
